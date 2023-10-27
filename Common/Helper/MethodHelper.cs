@@ -131,6 +131,14 @@ namespace Malignant.Common.Helper
         }
 
         //LowQualityTrash Xinim Math relate stuff
+
+        /// <summary>
+        /// Use to order 2 values from smallest to biggest
+        /// </summary>
+        /// <param name="v1"></param>
+        /// <param name="v2"></param>
+        /// <returns></returns>
+        public static (int, int) Order(float v1, float v2) => v1 < v2 ? ((int)v1, (int)v2) : ((int)v2, (int)v1);
         public static float InExpo(float t) => (float)Math.Pow(2, 5 * (t - 1));
         public static float OutExpo(float t) => 1 - InExpo(1 - t);
         public static float InOutExpo(float t)
@@ -162,5 +170,7 @@ namespace Malignant.Common.Helper
             }
             return NameSpace.Replace(".", "/") + "/" + altName;
         }
+        public static int CoolDown(int timer, int timeDecrease = 1) => timer > 0 ? timer - timeDecrease : 0;
+        public static float CoolDown(float timer, int timeDecrease = 1) => timer > 0 ? timer - timeDecrease : 0;
     }
 }

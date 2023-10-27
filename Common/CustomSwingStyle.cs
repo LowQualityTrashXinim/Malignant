@@ -1,157 +1,275 @@
 ﻿using Terraria;
-using Terraria.ID;
 using Terraria.ModLoader;
 using Terraria.GameContent;
+using Terraria.DataStructures;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using Malignant.Common.Helper;
-using static Malignant.Common.CustomSwingStyle;
+using Microsoft.Xna.Framework.Graphics;
 
-namespace Malignant.Common
+namespace TheSkeletronMod.Common.Globals
 {
-    internal class CustomSwingStyle : GlobalItem
+    public enum CustomUseStyle
     {
-        public class CustomUsestyleID
+        DefaultNoCustomSwing,
+        SwipeAttack,
+        PokeAttack,
+    }
+    public struct CustomAttack
+    {
+        public CustomUseStyle style = CustomUseStyle.DefaultNoCustomSwing;
+        public bool SwingDownWard = false;
+        public CustomAttack(CustomUseStyle style, bool SwingDownWard)
         {
-            public const int SwingVersionTwo = 16;
+            this.style = style;
+            this.SwingDownWard = SwingDownWard;
         }
-        const float PLAYERARMLENGTH = 11f;
+        public CustomAttack() { }
+    }
+    /// <summary>
+    /// To see implementation of this, please check <br/>
+    /// <see cref="SawboneSword.SetDefaults"/> or <see cref="BoneSword.SetDefaults"/> to see how to use this
+    /// </summary>
+    internal class ImprovedSwingSword : GlobalItem
+    {
+        public override bool InstancePerEntity => true;
+        public float ItemSwingDegree = 120;
+        public const float PLAYERARMLENGTH = 12f;
+        /// <summary>
+        /// Use this to set up your own attack swing<br/>
+        /// Q : Why not use List ?<br/>
+        /// A : Be responsible :>
+        /// </summary>
+        public CustomAttack[] ArrayOfAttack = new CustomAttack[] { };
+
+        public override bool CanUseItem(Item item, Player player)
+        {
+            return base.CanUseItem(item, player);
+        }
+        public override bool? UseItem(Item item, Player player)
+        {
+            if (ArrayOfAttack == null)
+                return base.UseItem(item, player);
+            if (ArrayOfAttack.Length <= 0)
+                return base.UseItem(item, player);
+            if (item.type != player.HeldItem.type)
+                return base.UseItem(item, player);
+            if (player.ItemAnimationJustStarted)
+            {
+                ImprovedSwingGlobalItemPlayer modplayer = player.GetModPlayer<ImprovedSwingGlobalItemPlayer>();
+                if (++modplayer.AttackIndex >= ArrayOfAttack.Length)
+                {
+                    modplayer.AttackIndex = 0;
+                }
+            }
+            return base.UseItem(item, player);
+        }
+        public override void UseStyle(Item item, Player player, Rectangle heldItemFrame)
+        {
+            if (ArrayOfAttack == null)
+                return;
+            if (ArrayOfAttack.Length <= 0)
+                return;
+            ImprovedSwingGlobalItemPlayer modplayer = player.GetModPlayer<ImprovedSwingGlobalItemPlayer>();
+            if (modplayer.AttackIndex >= ArrayOfAttack.Length)
+                return;
+            if (item.type != player.HeldItem.type)
+                return;
+
+            if (ArrayOfAttack[modplayer.AttackIndex].style == CustomUseStyle.SwipeAttack)
+            {
+                SwipeAttack(player, modplayer, ItemSwingDegree, ArrayOfAttack[modplayer.AttackIndex].SwingDownWard.ToDirectionInt());
+            }
+            if (ArrayOfAttack[modplayer.AttackIndex].style == CustomUseStyle.PokeAttack)
+            {
+                PokeAttack(player, modplayer, ItemSwingDegree, ArrayOfAttack[modplayer.AttackIndex].SwingDownWard.ToDirectionInt());
+            }
+        }
+        public override void ModifyItemScale(Item item, Player player, ref float scale)
+        {
+            if (ArrayOfAttack == null)
+                return;
+            if (ArrayOfAttack.Length <= 0)
+                return;
+            ImprovedSwingGlobalItemPlayer modplayer = player.GetModPlayer<ImprovedSwingGlobalItemPlayer>();
+            if (modplayer.AttackIndex >= ArrayOfAttack.Length)
+                return;
+            if (ArrayOfAttack[modplayer.AttackIndex].style != CustomUseStyle.DefaultNoCustomSwing)
+            {
+                int duration = player.itemAnimationMax;
+                float thirdduration = duration / 3;
+                float progress;
+                if (player.itemAnimation < thirdduration)
+                {
+                    progress = player.itemAnimation / thirdduration;
+                }
+                else
+                {
+                    progress = (duration - player.itemAnimation) / thirdduration;
+                }
+                scale += MathHelper.SmoothStep(-.5f, .25f, progress);
+            }
+        }
+        private void SwipeAttack(Player player, ImprovedSwingGlobalItemPlayer modplayer, float swingdegree, int direct)
+        {
+            float percentDone = player.itemAnimation / (float)player.itemAnimationMax;
+            float baseAngle = modplayer.data.ToRotation();
+            float angle = MathHelper.ToRadians(baseAngle + swingdegree) * player.direction;
+            float start = baseAngle + angle * direct;
+            float end = baseAngle - angle * direct;
+            Swipe(start, end, percentDone, player, modplayer, direct);
+        }
+        private void Swipe(float start, float end, float percentDone, Player player, ImprovedSwingGlobalItemPlayer modplayer, int direct)
+        {
+            float currentAngle = MathHelper.SmoothStep(start, end, percentDone);
+            player.itemRotation = currentAngle;
+            player.SetCompositeArmFront(true, Player.CompositeArmStretchAmount.Full, currentAngle - MathHelper.PiOver2);
+            player.itemRotation += player.direction > 0 ? MathHelper.PiOver4 : MathHelper.PiOver4 * 3;
+            player.itemLocation = player.Center + Vector2.UnitX.RotatedBy(currentAngle) * PLAYERARMLENGTH;
+        }
+        private void PokeAttack(Player player, ImprovedSwingGlobalItemPlayer modplayer, float swingdegree, int direct)
+        {
+            float percentDone = player.itemAnimation / (float)player.itemAnimationMax;
+            float baseAngle = modplayer.data.ToRotation();
+            float angle = MathHelper.ToRadians(baseAngle + swingdegree) * player.direction;
+            float start = baseAngle + angle * direct;
+            float end = baseAngle - angle * direct;
+            Poke(start, end, percentDone, player, modplayer, direct);
+        }
+        private void Poke(float start, float end, float percentDone, Player player, ImprovedSwingGlobalItemPlayer modplayer, int direct)
+        {
+            float currentAngle = MathHelper.SmoothStep(start, end, percentDone);
+            ImprovedSwingGlobalItemPlayer modPlayer = player.GetModPlayer<ImprovedSwingGlobalItemPlayer>();
+            player.itemRotation = currentAngle;
+            player.SetCompositeArmFront(true, Player.CompositeArmStretchAmount.Full, currentAngle - MathHelper.PiOver2);
+            player.itemRotation += player.direction > 0 ? MathHelper.PiOver4 : MathHelper.PiOver4 * 3;
+            if (direct == -1)
+            {
+                modPlayer.CustomItemRotation = currentAngle;
+                modPlayer.CustomItemRotation += player.direction > 0 ? MathHelper.PiOver4 * 3 : MathHelper.PiOver4;
+            }
+            player.itemLocation = player.Center + Vector2.UnitX.RotatedBy(currentAngle) * PLAYERARMLENGTH;
+        }
+        //Credit hitbox code to Stardust
         public override void UseItemHitbox(Item item, Player player, ref Rectangle hitbox, ref bool noHitbox)
         {
-            //this remain untouch cause idk what in the hell should i change here
-            if (item.useStyle == CustomUsestyleID.SwingVersionTwo)
+            if (ArrayOfAttack == null)
+                return;
+            if (ArrayOfAttack.Length <= 0)
+                return;
+            ImprovedSwingGlobalItemPlayer modplayer = player.GetModPlayer<ImprovedSwingGlobalItemPlayer>();
+            if (modplayer.AttackIndex >= ArrayOfAttack.Length)
+                return;
+            if (ArrayOfAttack[modplayer.AttackIndex].style != CustomUseStyle.DefaultNoCustomSwing)
             {
-                //Get the direction of the weapon, and the distance from the player to the hilt
                 Vector2 handPos = Vector2.UnitY.RotatedBy(player.compositeFrontArm.rotation);
-
-                //Use afforementioned direction, and get the distance from the player to the tip of the weapon
-                float length = new Vector2(item.width, item.height).Length() * player.GetAdjustedItemScale(item);
+                float length = new Vector2(item.width, item.height).Length() * player.GetAdjustedItemScale(player.HeldItem);
                 Vector2 endPos = handPos;
-
-                //Use values obtained above to construct an approximation of the two most important points
-                handPos *= PLAYERARMLENGTH;
                 endPos *= length;
                 handPos += player.MountedCenter;
                 endPos += player.MountedCenter;
-
-                //Use helper method to get coordinates and size for the rectangle
-                (int X1, int X2) XVals = Order(handPos.X, endPos.X);
-                (int Y1, int Y2) YVals = Order(handPos.Y, endPos.Y);
-
-                //Create the new bounds of the hitbox
+                (int X1, int X2) XVals = MethodHelper.Order(handPos.X, endPos.X);
+                (int Y1, int Y2) YVals = MethodHelper.Order(handPos.Y, endPos.Y);
                 hitbox = new Rectangle(XVals.X1 - 2, YVals.Y1 - 2, XVals.X2 - XVals.X1 + 2, YVals.Y2 - YVals.Y1 + 2);
             }
         }
-        public override bool CanUseItem(Item item, Player player)
+    }
+    /// <summary>
+    /// DO NOT FUCK WITH THIS
+    /// </summary>
+    public class MeleeOverhaulSystem : ModSystem
+    {
+        public override void Load()
         {
-            if (item.useStyle != CustomUsestyleID.SwingVersionTwo)
+            base.Load();
+            On_PlayerDrawLayers.DrawPlayer_RenderAllLayers += On_PlayerDrawLayers_DrawPlayer_RenderAllLayers;
+        }
+
+        private void On_PlayerDrawLayers_DrawPlayer_RenderAllLayers(On_PlayerDrawLayers.orig_DrawPlayer_RenderAllLayers orig, ref PlayerDrawSet drawinfo)
+        {
+            Player player = Main.LocalPlayer;
+            Item item = player.HeldItem;
+            if (player.TryGetModPlayer(out ImprovedSwingGlobalItemPlayer modplayer))
             {
-                return base.CanUseItem(item, player);
+                if (item.TryGetGlobalItem(out ImprovedSwingSword meleeItem))
+                {
+                    if (modplayer.AttackIndex < meleeItem.ArrayOfAttack.Length)
+                    {
+                        if (meleeItem.ArrayOfAttack[modplayer.AttackIndex].style == CustomUseStyle.PokeAttack && !meleeItem.ArrayOfAttack[modplayer.AttackIndex].SwingDownWard)
+                        {
+                            for (int i = 0; i < drawinfo.DrawDataCache.Count; i++)
+                            {
+                                if (drawinfo.DrawDataCache[i].texture == TextureAssets.Item[item.type].Value)
+                                {
+                                    DrawData drawdata = drawinfo.DrawDataCache[i];
+                                    Vector2 origin = drawdata.texture.Size() * .5f;
+                                    drawdata.sourceRect = null;
+                                    drawdata.ignorePlayerRotation = true;
+                                    drawdata.rotation = modplayer.CustomItemRotation;
+                                    drawdata.position += Vector2.UnitX.RotatedBy(modplayer.CustomItemRotation) * ((origin.Length() + ImprovedSwingSword.PLAYERARMLENGTH) * drawdata.scale.X + ImprovedSwingSword.PLAYERARMLENGTH) * -player.direction;
+                                    drawinfo.DrawDataCache[i] = drawdata;
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            return player.GetModPlayer<MeleeOverhaulPlayer>().delaytimer <= 0;
-        }
-        public override float UseSpeedMultiplier(Item item, Player player)
-        {
-            return 1;
-        }
-        public override void UseStyle(Item Item, Player player, Rectangle heldItemFrame)
-        {
-            if (Item.useStyle == CustomUsestyleID.SwingVersionTwo)
-            {
-                MeleeOverhaulPlayer modPlayer = player.GetModPlayer<MeleeOverhaulPlayer>();
-                Item.noUseGraphic = false;
-                //if (modPlayer.count == 2)
-                //{
-                //    CircleSwingAttack(player, modPlayer);
-                //    return;
-                //}
-                SwingVersionTwoAttack(player, Item, modPlayer);
-            }
-        }
-        private static (int, int) Order(float v1, float v2) => v1 < v2 ? ((int)v1, (int)v2) : ((int)v2, (int)v1);
-        private void SwingVersionTwoAttack(Player player,Item item, MeleeOverhaulPlayer modPlayer)
-        {
-            int VerticleDirectionSwingVersionTwo = modPlayer.count == 0 ? -1 : 1;
-            float percentDone = player.itemAnimation / (float)player.itemAnimationMax;
-            float baseAngle = modPlayer.data.ToRotation();
-            float angle = MathHelper.ToRadians(baseAngle + 90) * player.direction;
-            float start = baseAngle + angle * VerticleDirectionSwingVersionTwo;
-            float end = baseAngle - angle * VerticleDirectionSwingVersionTwo;
-            float currentAngle = MathHelper.SmoothStep(start, end, MethodHelper.InExpo(percentDone));
-            player.itemRotation = currentAngle;
-            player.itemRotation += player.direction > 0 ? MathHelper.PiOver4 : MathHelper.PiOver4 * 3f;
-            player.compositeFrontArm = new Player.CompositeArmData(true, Player.CompositeArmStretchAmount.Full, currentAngle - MathHelper.PiOver2);
-            player.itemLocation = player.MountedCenter + Vector2.UnitX.RotatedBy(currentAngle) * PLAYERARMLENGTH;
+            orig.Invoke(ref drawinfo);
         }
     }
-    public class MeleeOverhaulPlayer : ModPlayer
+    public class ImprovedSwingGlobalItemPlayer : ModPlayer
     {
-        public Vector2 data;
-        public int count = -1;
-        int iframeCounter = 0;
-        public int delaytimer = 10;
-        public int oldHeldItem;
-        public override void PreUpdate()
-        {
-            if (Player.HeldItem.useStyle != CustomUsestyleID.SwingVersionTwo)
-            {
-                return;
-            }
-            Player.HeldItem.useTurn = false;
-        }
-        private void ComboHandleSystem()
-        {
-            if (Player.HeldItem.type != oldHeldItem)
-            {
-                count = -1;
-                return;
-            }
-            count++;
-            if (count >= 2)
-            {
-                count = 0;
-            }
-        }
-        //private void SpinAttackExtraHit()
-        //{
-        //    if (count != 2)
-        //    {
-        //        return;
-        //    }
-        //    Item item = Player.HeldItem;
-        //    for (int i = 0; i < Main.maxNPCs; i++)
-        //    {
-        //        NPC npc = Main.npc[i];
-        //        if (npc.Hitbox.Intersects(SwordHitBox) && CanAttack(npc) && npc.immune[Player.whoAmI] > 0 && iframeCounter == 0)
-        //        {
-        //            npc.StrikeNPC((int)(item.damage * 1.5f), item.knockBack, Player.direction, critReference);
-        //            iframeCounter = (int)(Player.itemAnimationMax * .333f);
-        //            Player.dpsDamage += (int)(item.damage * 1.5f);
-        //        }
-        //    }
-        //}
+        public Vector2 data = Vector2.Zero;
+        public Vector2 mouseLastPosition = Vector2.Zero;
+        public float CustomItemRotation = 0;
+        public int AttackIndex = 0;
         public override void PostUpdate()
         {
-            delaytimer -= delaytimer > 0 ? 1 : 0;
-            iframeCounter -= iframeCounter > 0 ? 1 : 0;
-            if (Player.HeldItem.useStyle != CustomUsestyleID.SwingVersionTwo)
+            Item item = Player.HeldItem;
+            if (item.TryGetGlobalItem(out ImprovedSwingSword meleeItem))
             {
-                return;
+                if (AttackIndex >= meleeItem.ArrayOfAttack.Length)
+                    return;
+                if (meleeItem.ArrayOfAttack[AttackIndex].style == CustomUseStyle.DefaultNoCustomSwing || Player.HeldItem.noMelee)
+                    return;
             }
-            Player.HeldItem.noUseGraphic = true;
-            if (Player.ItemAnimationJustStarted && Player.ItemAnimationActive && delaytimer == 0)
+            if (Player.ItemAnimationJustStarted)
             {
-                delaytimer = Player.itemAnimationMax + (int)(Player.itemAnimationMax * .34f);
                 data = (Main.MouseWorld - Player.MountedCenter).SafeNormalize(Vector2.Zero);
-                ComboHandleSystem();
             }
             if (Player.ItemAnimationActive)
             {
                 Player.direction = data.X > 0 ? 1 : -1;
-                //SpinAttackExtraHit();
             }
-            oldHeldItem = Player.HeldItem.type;
             Player.attackCD = 0;
+            for (int i = 0; i < Player.meleeNPCHitCooldown.Length; i++)
+            {
+                if (Player.meleeNPCHitCooldown[i] > 0)
+                {
+                    Player.meleeNPCHitCooldown[i]--;
+                }
+            }
+        }
+        public override void ModifyDrawInfo(ref PlayerDrawSet drawInfo)
+        {
+            base.ModifyDrawInfo(ref drawInfo);
+            Item item = Player.HeldItem;
+            if (item.TryGetGlobalItem(out ImprovedSwingSword meleeItem))
+            {
+                if (AttackIndex < meleeItem.ArrayOfAttack.Length)
+                {
+                    if (meleeItem.ArrayOfAttack[AttackIndex].style == CustomUseStyle.PokeAttack && !meleeItem.ArrayOfAttack[AttackIndex].SwingDownWard)
+                    {
+                        if (Player.direction == -1)
+                        {
+                            drawInfo.itemEffect = SpriteEffects.None;
+                        }
+                        else
+                        {
+                            drawInfo.itemEffect = SpriteEffects.FlipHorizontally;
+                        }
+                    }
+                }
+            }
         }
     }
 }

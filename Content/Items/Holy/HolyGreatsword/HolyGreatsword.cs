@@ -1,7 +1,7 @@
 ﻿using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
-using static Malignant.Common.CustomSwingStyle;
+using TheSkeletronMod.Common.Globals;
 
 namespace Malignant.Content.Items.Holy.HolyGreatsword
 {
@@ -18,20 +18,28 @@ namespace Malignant.Content.Items.Holy.HolyGreatsword
             Item.damage = 16;
             Item.DamageType = DamageClass.Melee;
             Item.width = Item.height = 90;
-            Item.useTime = 20;
-            Item.useAnimation = 20;
-            Item.useStyle = CustomUsestyleID.SwingVersionTwo;
+            Item.useTime = 50;
+            Item.useAnimation = 50;
             Item.knockBack = 4;
             Item.value = 10000;
 
+            Item.useStyle = ItemUseStyleID.Swing;
             Item.UseSound = SoundID.Item1;
             Item.autoReuse = true;
-            //Item.noMelee = true;
-            //Item.shoot = ModContent.ProjectileType<HolyGSProj>();
-            //Item.shootSpeed = 20f;
-            Item.noUseGraphic = true;
+
             Item.value = Item.sellPrice(0, 2, 50, 0);
             Item.rare = ItemRarityID.LightPurple;
+
+            if (Item.TryGetGlobalItem(out ImprovedSwingSword meleeItem))
+            {
+                meleeItem.ArrayOfAttack =
+                    new CustomAttack[]
+                    {
+                        new CustomAttack(CustomUseStyle.PokeAttack, true),
+                        new CustomAttack(CustomUseStyle.PokeAttack, false)
+                    };
+                meleeItem.ItemSwingDegree = 150;
+            }
         }
 
         public override void AddRecipes()
